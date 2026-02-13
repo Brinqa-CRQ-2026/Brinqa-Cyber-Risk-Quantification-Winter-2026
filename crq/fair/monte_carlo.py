@@ -10,10 +10,4 @@ def simulate_annual_losses(
     """
     Run Monte Carlo sim
     """
-    events = np.random.poisson(lam=lef, size=iterations)
-
-    sampled_losses = np.random.choice(loss_samples, size=iterations)
-
-    annual_losses = events * sampled_losses
-
-    return annual_losses
+    pass
