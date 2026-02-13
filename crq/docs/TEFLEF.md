@@ -92,7 +92,10 @@ $Loss = DowntimeCost + IRCost + Legal + Notification + RevenueLoss$
 ## If there is no internal data, use parametric distribution
 $Loss_{event} ~ LogNormal(\mu, \sigma)$
 
-fd
+Calibrating LogNormal
+- suppose you have average and median breach cost
+- Median = $e^{\mu}$
+- Mean = $e^{\mu + \frac{\sigma^2}{2}}$
 
 # Outputs
 Annualized Loss Expectancy (ALE): mean(AnnualLoss)
