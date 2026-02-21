@@ -10,73 +10,116 @@ def annualize_epss(epss_30d: float) -> float:
     """
     return 1 - (1 - epss_30d) ** 12
 
-def calculate_exposure_factor(
-    internet_exposed_norm: float = 0.5,
-    network_accesibility: str = "UNKNOWN",
-    asset_crit_norm: float = 0.5,
-    service: str = ""
+def estimate_tcap_score(
+    epss_annual: float,
+    attack_vector: str,
+    privileges_required: str,
+    user_interaction: str
 ) -> float:
     """
-    Compute ExposureFactor (0-1).
-    Exposure factor captures how likely an asset is to be 
-    contacted by a threat actor.
+    Estimate normalized Threat Capability score (0-1)
+    Lower score = easier exploit
+    Higher score = stronger attacker required
     """
-    internet_exposed_norm = min(max(internet_exposed_norm, 0.0), 1.0)
-    asset_crit_norm = min(max(asset_crit_norm, 0.0), 1.0)
+    score = 0.0
 
-    # network scoring
-    if network_accesibility == "NETWORK":
-        network_score = 1.0
-    elif network_accesibility == "LOCAL":
-        network_score = 0.3
+    # EPSS influence
+    score += 0.5 * (1 - epss_annual)
+
+    #ATTACK VECTOR
+    if attack_vector == "NETWORK":
+        score += 0.2
     else:
-        network_score = 0.7
+        score += 0.05
 
-    #service scoring
-    service_scores = {
-        "http": 1.0,
-        "https": 1.0,
-        "ssh": 0.9,
-        "rdp": 0.9,
-        "mysql": 0.8,
-        "postgres": 0.8,
-        "mongodb": 0.8
-    }
+    if privileges_required == "NONE":
+        score += 0.2
+    else:
+        score += 0.05
 
-    service_score = service_scores.get(str(service).lower(), 0.6)
+    if user_interaction == "NONE":
+        score += 0.1
+    else:
+        score += 0.02
 
-    #assign weights
-    #weights are in experimental phase, will have to
-    #verify if these are optimal
-    w1, w2, w3, w4 = 0.45, 0.25, 0.20, 0.10
+    return min(max(score, 0.01), 1.0)
 
-    exposure = w1*internet_exposed_norm + w2*network_score + w3*service_score + w4*asset_crit_norm
-
-    return min(max(exposure, 0.0), 1.0)
-
-def calculate_control_factor(
-    patch_age_days: int,
-    privileges_required: str
+def estimate_rs_score(
+    auth_required: bool,
+    internet_exposed: bool,
+    vuln_age_days: int
 ) -> float:
     """
-    Compute ControlFactor (0-1).
-    Represents how effective defensive controls are.
+    Estimate normalized Resistance Strength score (0-1)
+    Higher score = stronger defenses
     """
-    pass
+    score = 0.0
+
+    score += 0.3 if auth_required else 0.05
+
+    score += 0.05 if internet_exposed else 0.2
+
+    if vuln_age_days < 30:
+        score += 0.3
+    elif vuln_age_days < 100:
+        score += 0.15
+    else:
+        score += 0.05
+    
+    return min(max(score, 0.01), 1.0)
+
+def score_to_scale(x: float) -> float:
+    return 0.1 + 4.9 * x
+
+def score_to_lognormal_params(
+    score: float,
+    sigma: float = 0.5
+):
+    scaled = score_to_scale(score)
+    mu = np.log(scaled)
+    return mu, sigma
+
+def sample_lognormal(mu: float, sigma: float, iterations: int = 10000):
+    return np.random.lognormal(mean=mu, sigma=sigma, size=iterations)
+
+def compute_vulnerability(tcap_samples, rs_samples):
+    """
+    Vulnerability = P(TCap > RS)
+    """
+    return np.mean(tcap_samples > rs_samples)
 
 def calculate_fair_vulnerability(
-    epss_30d: float,
-    internet_exposed_norm: float,
-    network_accessibility: str,
-    asset_crit_norm: float,
-    service: str,
-    patch_age_days: int,
-    privileges_required: str
+    epss_annual: float,
+    attack_vector: str,
+    privileges_required: str,
+    user_interaction: str,
+    auth_required: bool,
+    internet_exposed: bool,
+    vuln_age_days: int,
+    iterations: int = 10000    
 ) -> float:
-    """
-    Compute FAIR Vulnerability (probability an attack attempt succeeds).
-    """
+    tcap_score = estimate_tcap_score(
+        epss_annual=epss_annual, 
+        attack_vector=attack_vector, 
+        privileges_required=privileges_required,
+        user_interaction=user_interaction
+        )
     
+    rs_score = estimate_rs_score(
+        auth_required=auth_required,
+        internet_exposed=internet_exposed,
+        vuln_age_days=vuln_age_days
+    )
+
+    mu_t, sigma_t = score_to_lognormal_params(tcap_score)
+    mu_r, sigma_r = score_to_lognormal_params(rs_score)
+
+    tcap_samples = sample_lognormal(mu=mu_t, sigma=sigma_t, iterations=iterations)
+    rs_samples = sample_lognormal(mu=mu_r, sigma=sigma_r, iterations=iterations)
+
+    vulnerability = compute_vulnerability(tcap_samples, rs_samples)
+
+    return vulnerability
 
 def calculate_lambda(
     internet_exposed: bool,
@@ -121,12 +164,32 @@ def compute_lef(
     """
     return lambda_tef * vulnerability
 
-def sample_successful_events(
-    lambda_tef: float,
-    vulnerability: float,
-    iteration: int=10000
-) -> np.ndarray:
-    """
-    Sample successful events using Poisson thinning.
-    """
-    pass
+if __name__ == "__main__":
+    epss_30d = 0.004
+    epss_annual = 1 - (1 - epss_30d) ** 12
+    vuln = calculate_fair_vulnerability(
+    epss_annual=epss_annual,
+    attack_vector="NETWORK",
+    privileges_required="NONE",
+    user_interaction="NONE",
+    auth_required=False,
+    internet_exposed=True,
+    vuln_age_days=300,
+    iterations=20000
+    )
+
+    print("FAIR Vulnerability:", vuln)
+    vuln_strong = calculate_fair_vulnerability(
+    epss_annual=epss_annual,
+    attack_vector="NETWORK",
+    privileges_required="NONE",
+    user_interaction="NONE",
+    auth_required=True,
+    internet_exposed=False,
+    vuln_age_days=10,
+    iterations=20000
+    )
+
+    print("FAIR Vulnerability (strong controls):", vuln_strong)
+
+    
