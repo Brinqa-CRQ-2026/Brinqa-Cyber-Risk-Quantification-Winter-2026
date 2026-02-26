@@ -12,10 +12,6 @@ from fair.frequency.lef import LEF
 def run_frequency_simulation(iterations: int = 10000):
 
     print("\n=== FAIR Frequency Simulation Test ===\n")
-
-    # -----------------------------
-    # 1️⃣ Initialize TEF
-    # -----------------------------
     tef_engine = TEF(seed=42)
 
     tef_results = tef_engine.simulate(
@@ -32,9 +28,6 @@ def run_frequency_simulation(iterations: int = 10000):
     print(f"TEF Mean: {np.mean(tef_distribution):.4f}")
     print(f"Lambda Mean: {np.mean(lambda_samples):.4f}")
 
-    # -----------------------------
-    # 2️⃣ Initialize Vulnerability
-    # -----------------------------
     tcap_model = ThreatCapabilityModel(
         mu=1.0,
         sigma=0.8
@@ -57,9 +50,6 @@ def run_frequency_simulation(iterations: int = 10000):
 
     print(f"Vulnerability (P[TCap > RS]): {vulnerability:.4f}")
 
-    # -----------------------------
-    # 3️⃣ Compute LEF
-    # -----------------------------
     lef_engine = LEF()
 
     lef_results = lef_engine.simulate(
@@ -72,9 +62,6 @@ def run_frequency_simulation(iterations: int = 10000):
     print(f"LEF Mean: {lef_results['lef_mean']:.4f}")
     print(f"Lambda Success Mean: {lef_results['lambda_success_mean']:.4f}")
 
-    # -----------------------------
-    # 4️⃣ Statistical Summary
-    # -----------------------------
     print("\n--- LEF Distribution Summary ---")
     print(f"Std Dev: {np.std(lef_distribution):.4f}")
     print(f"P50: {np.percentile(lef_distribution, 50):.4f}")
@@ -82,9 +69,6 @@ def run_frequency_simulation(iterations: int = 10000):
     print(f"P95: {np.percentile(lef_distribution, 95):.4f}")
     print(f"Max: {np.max(lef_distribution):.4f}")
 
-    # -----------------------------
-    # 5️⃣ Sanity Checks
-    # -----------------------------
     print("\n--- Sanity Checks ---")
 
     if vulnerability == 0:
