@@ -62,7 +62,7 @@ class TEF:
         S = self.service_multipliers.get(service.lower(), 1.5)
         A = self.asset_multipliers.get(asset_type, 1.0)
 
-        # 🔥 Stochastic exposure multiplier
+        # Stochastic exposure multiplier
         if internet_exposed:
             exposure_samples = np.random.lognormal(
                 mean=np.log(50),      # center around 50 instead of 200
