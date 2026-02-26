@@ -52,11 +52,39 @@ class TEF:
 
     def sample_contact_frequency(
         self,
-        cf_mean: float,
+        internet_exposed: bool,
+        asset_type: str,
+        service: str,
         iterations: int = 10000
     ) -> np.ndarray:
-        mu = np.log(cf_mean) - (self.cf_sigma**2) / 2
-        return np.random.lognormal(mean=mu, sigma=self.cf_sigma, size=iterations)
+
+        # Base deterministic components
+        S = self.service_multipliers.get(service.lower(), 1.5)
+        A = self.asset_multipliers.get(asset_type, 1.0)
+
+        # 🔥 Stochastic exposure multiplier
+        if internet_exposed:
+            exposure_samples = np.random.lognormal(
+                mean=np.log(50),      # center around 50 instead of 200
+                sigma=0.4,
+                size=iterations
+            )
+        else:
+            exposure_samples = np.ones(iterations)
+
+        base = self.base_contact_rate * S * A
+
+        cf_mean_samples = base * exposure_samples
+
+        # Convert means to lognormal sampling properly
+        mu = np.log(cf_mean_samples) - (self.cf_sigma**2) / 2
+
+        cf_samples = np.random.lognormal(
+            mean=mu,
+            sigma=self.cf_sigma
+        )
+
+        return cf_samples
 
     def compute_poa_mean(
         self,
@@ -82,13 +110,12 @@ class TEF:
         epss_annual: float,
         iterations: int = 10000
     ) -> dict:
-        cf_mean = self.compute_cf_mean(
+        cf_samples = self.sample_contact_frequency(
             internet_exposed=internet_exposed,
             asset_type=asset_type,
-            service=service
+            service=service,
+            iterations=iterations
         )
-
-        cf_samples = self.sample_contact_frequency(cf_mean, iterations=iterations)
 
         poa_mean = self.compute_poa_mean(epss_annual=epss_annual)
         poa_samples = self.sample_poa(poa_mean=poa_mean, iterations=iterations)
@@ -98,7 +125,7 @@ class TEF:
         tef_samples = np.random.poisson(lam=lambda_samples)
 
         return {
-            "cf_mean": cf_mean,
+            "cf_mean": np.mean(cf_samples),
             "poa_mean": poa_mean,
             "lambda_mean": np.mean(lambda_samples),
             "tef_mean": np.mean(tef_samples),

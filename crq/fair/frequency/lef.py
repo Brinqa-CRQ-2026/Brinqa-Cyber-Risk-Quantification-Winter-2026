@@ -1,5 +1,5 @@
 import numpy as np
-from tef import TEF
+from .tef import TEF
 
 class LEF:
     def __init__(self):
