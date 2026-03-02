@@ -5,7 +5,7 @@ context = {
     "asset_type": "Web Server",
     "service": "https",
     "epss_annual": 0.3,
-    "control_score": 0.6
+    "control_score": 0.2
 }
 
 engine = FrequencyEngine(seed=42)

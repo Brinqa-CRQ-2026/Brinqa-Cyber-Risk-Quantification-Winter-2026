@@ -1,75 +1,98 @@
-# Canonical FAIR Vulnerability Model
-This model implements canonical OpenFAIR vulnerability:
+# FAIR Monte Carlo Risk Engine
 
-$V = P(TCap > RS)$
+This package implements a probabilistic FAIR (Factor Analysis of Information) model using Monte Carlo simulation.
 
-Where:
-* TCap = Threat Capability distribution
-* RS = Resistance Strength distribution
-* Both modeled as lognormal
-* Vulnerability computed via Monte Carlo simulation
+The engine models cyber risk as:
 
-The parameterization choices reflect structural FAIR guidance and empirical risk modeling conventions.
+    Risk = Loss Event Frequency x Loss Magnitude
 
-# Why Lognormal Distributions
-Both TCap and RS are modeled as:
+All outputs are annualized.
 
-X ~ $LogNormal(\mu, \sigma)$
+# Model Overview
 
-* Real-world capability distributions are right-skewed
-* A small moniroty of actors posses very high capability
-* control effectiveness exhibits variability and tail behavior
+The engine implements the following structure:
+1) Contact Frequency
+2) Probability of Action
+3) Threat Event Frequency
+4) Vulnerability
+5) Escalation Probability
+6) Loss Event Frequency
+7) Loss Magnitude
+9) Annual Risk
 
-Lognormal modeling is standard in quantitative risk analysis and consistent with FAIR
+Mathematically:
+    LEF = Poisson(CF x PoA x Vulnerability x Escalation)
+    LM = Primary + Secondary
+    Annual Risk = LEF x LM
 
-# Threat Capability Parameters
-$\mu _T = ln(2.0), \sigma _T = 0.5$
+All components are modeled using Monte Carlo simulation.
 
-This produces:
-* Median attacker capability = 2.0 units of force
-* Moderate dispersion reflecting heterogeneous attacker population
+# Package Structure
 
-## Median Anchoring
-* The media is set to 2.0 to create realistic overlap with typical enterprise control strength
-    - Ensures neither automatic dominance of attacker nor defender
-    - Produces non-saturted vulnerability outputs
+```
+fair/
+├── frequency/
+│ ├── tef.py
+│ ├── vulnerability.py
+│ ├── lef.py
+│ └── interface.py
+│
+├── magnitude/
+│ └── lm.py
+│
+└── risk_engine.py
+```
 
-## Dispersion
-* Reflects moderate heterogeneity:
-    - Commodity attackers in lower quantiles
-    - Organized actors and elite attackers in upper tail
-    - Avoids unrealistic heavy-tail nation-state dominance
+# Frequency Module
 
-## Scenario Sensitivity
-* Increasing $\mu _T$ corrently increases vulnerability.
+Models annualized Loss Event Frequency.
 
-# Resistance Strength Parameterization
-RS is defined as:
+Components:
 
-RS ~ $LogNormal(\mu _R, \sigma _R)$
+- TEF: Poisson(CF x PoA)
+- Vulnerability: P(TCap > Resistance Strength)
+- Escalation: Probability exploit escalates to business-impact event
 
-Where:
+Output:
 
-$\mu_R = \ln(1.2 * (1 + 2 * \text{control score}))$
+- Annual loss event frequency distribution
 
-and:
+LEF represents business-impacting loss events, not exploit attempts
 
-$\sigma_R = 0.4$
+# Magnitude Module
 
-## Baseline Force
-The constant 1.2 represents:
-* Minimal baseline exploit difficulty
-* Even without strong controls, exploitation requires non-zero force
+Models loss per loss event.
 
-## Control Scaling Multiplier (1 + 2 * score)
-* Monotonicity : Increasing control_score must strictly increase required force
-* Multiplicative Control Impact: Controls increase required force proportionally; reflcts layered defense increasing attack complexity
-* Reasonable force spread
-    - control_score = 0.1 -> multiplier = 1.2
-    - control_score = 0.5 -> multiplier = 2.0
-    - control_score = 0.9 -> multiplier = 2.8
-* Empirical Stability: Scaling validated through sensitivity testing
+Components:
 
-## RS Dispersion
-* Reflects variability inc ontrol effectiveness, operational inconsistencies, environmental variability
-* Slightly lower than TCaap dispersion to reflect more structured enterprise controls relative to attacker heterogeneity
+- Primary Loss (LogNormal)
+- Secondary Trigger (Bernoulli)
+- Secondary Magnitude (LogNormal)
+
+Output:
+
+- Loss per event distribution
+
+# Risk Engine
+
+Combines frequency and magnitude:
+
+    Annual Risk = LEF x LM
+
+Monte Carlo elementwise multiplication preserves distributional behavior.
+
+Outputs:
+
+- Expected annual loss
+- Full distribution
+- Risk percentiles (P90, P95, etc.)
+
+# Modeling Assumptions
+
+- All frequency values are annual
+- Heavy-tailed behavior is modeled using LogNormal distributions
+- Event progression uses Poisson thinning
+- Escalation progression uses Poisson thinning.
+- Escalation converts technical exploit success into business-impact events
+- Primary and secondary losses are conditionally independent
+- Monte Carlo sampling preserves distribution shape across the pipeline
